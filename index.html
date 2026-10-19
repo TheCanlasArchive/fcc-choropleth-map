@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Education Divide | U.S. County Choropleth</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script defer src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+  <style>
+    :root {
+      --bg: #08111e;
+      --surface: #122136;
+      --surface-2: #152940;
+      --line: #2a4159;
+      --text: #f1f6fd;
+      --muted: #a2b4c9;
+      --accent: #8be3cb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 44px 22px;
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(ellipse at 88% -15%, #243c52 0%, transparent 48%),
+        var(--bg);
+    }
+
+    main { max-width: 1220px; margin: auto; }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    header { margin-bottom: 25px; }
+
+    h1 {
+      font-size: clamp(31px, 5vw, 49px);
+      letter-spacing: -.05em;
+      line-height: 1.14;
+      margin: 11px 0;
+    }
+
+    #description {
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 750px;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 17px;
+    }
+
+    .stat {
+      padding: 19px 22px;
+      border-radius: 15px;
+      background: #112035;
+      border: 1px solid var(--line);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 750;
+      letter-spacing: .11em;
+    }
+
+    .stat-value {
+      font-size: 27px;
+      font-weight: 800;
+      margin-top: 7px;
+      letter-spacing: -.035em;
+    }
+
+    .card {
+      padding: 26px 29px 20px;
+      background: linear-gradient(148deg, var(--surface-2), var(--surface));
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 20px 65px #0004;
+    }
+
+    .card-head, .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .card-head strong { font-size: 17px; }
+    .hint, .meta { color: var(--muted); font-size: 12px; }
+
+    .map-scroll { overflow-x: auto; padding-bottom: 3px; }
+    .map-stage { position: relative; min-width: 950px; }
+
+    #map {
+      width: 100%;
+      height: auto;
+      display: block;
+      overflow: visible;
+    }
+
+    .county {
+      stroke: #0e2335;
+      stroke-width: .17;
+      stroke-linejoin: round;
+      cursor: crosshair;
+    }
+
+    .county:hover, .county:focus {
+      stroke: #fff;
+      stroke-width: 1.3;
+      outline: none;
+    }
+
+    .state-borders {
+      fill: none;
+      stroke: #dbe7e8;
+      stroke-width: .65;
+      stroke-opacity: .72;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    #tooltip {
+      display: none;
+      position: absolute;
+      z-index: 3;
+      min-width: 190px;
+      max-width: 260px;
+      pointer-events: none;
+      padding: 14px 16px;
+      background: #061120;
+      border: 1px solid #547186;
+      border-radius: 12px;
+      box-shadow: 0 15px 30px #0008;
+      line-height: 1.5;
+    }
+
+    .tip-kicker {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .tip-name { font-weight: 780; margin-top: 4px; font-size: 15px; }
+    .tip-value { color: #a1ecd3; font-size: 23px; font-weight: 850; margin-top: 5px; }
+    .tip-detail { color: var(--muted); font-size: 11px; }
+
+    .legend-area {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .legend-title { font-weight: 750; font-size: 13px; }
+    .legend-subtitle { color: var(--muted); font-size: 12px; margin-top: 5px; }
+
+    #legend {
+      width: min(565px, 100%);
+      height: auto;
+      display: block;
+      overflow: visible;
+    }
+
+    .legend-tick { fill: #c9d6e5; font-size: 11px; }
+
+    .meta { margin-top: 19px; }
+    .meta a { color: var(--accent); }
+    .error { color: #ffc5c5; padding: 25px; }
+
+    @media (max-width: 680px) {
+      body { padding: 24px 10px; }
+      .card { padding: 18px 9px; }
+      .stats { gap: 7px; }
+      .stat { padding: 13px 10px; }
+      .stat-value { font-size: 20px; }
+      .stat-label { font-size: 9px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Data Atlas / United States</div>
+      <h1 id="title">The Education Divide</h1>
+      <p id="description">
+        Share of adults aged 25 and older with a bachelor's degree or higher,
+        mapped across U.S. counties. Each county's color represents its
+        educational attainment rate in the supplied dataset.
+      </p>
+    </header>
+
+    <section class="stats" aria-label="Dataset overview">
+      <div class="stat">
+        <div class="stat-label">Counties mapped</div>
+        <div class="stat-value" id="county-count">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Average degree attainment</div>
+        <div class="stat-value" id="average-rate">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Highest county rate</div>
+        <div class="stat-value" id="highest-rate">—</div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="United States education choropleth map">
+      <div class="card-head">
+        <strong>County-level education attainment</strong>
+        <span class="hint">Hover over a county to explore the data</span>
+      </div>
+
+      <div class="map-scroll">
+        <div class="map-stage">
+          <svg id="map" role="img" aria-label="U.S. counties colored by bachelor's degree attainment"></svg>
+          <div id="tooltip" data-education="" role="status"></div>
+        </div>
+      </div>
+
+      <div class="legend-area">
+        <div>
+          <div class="legend-title">Bachelor's degree or higher (%)</div>
+          <div class="legend-subtitle">Lower attainment → Higher attainment</div>
+        </div>
+        <svg id="legend" aria-label="Education percentage color legend"></svg>
+      </div>
+
+      <div class="meta">
+        <span>Values represent educational attainment, not school quality.</span>
+        <span>
+          Data:
+          <a href="https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/for_user_education.json"
+             target="_blank" rel="noopener noreferrer">freeCodeCamp education dataset</a>
+        </span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const educationURL =
+      'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/for_user_education.json';
+    const countiesURL =
+      'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/counties.json';
+
+    const colors = [
+      '#30435f', '#355c81', '#447ea0', '#5a9bab',
+      '#76b7ae', '#a5d4ae', '#cde3a7', '#efda91'
+    ];
+
+    const width = 1020;
+    const height = 650;
+    const svg = d3.select('#map').attr('viewBox', `0 0 ${width} ${height}`);
+    const tooltip = d3.select('#tooltip');
+    const stage = d3.select('.map-stage');
+
+    Promise.all([d3.json(educationURL), d3.json(countiesURL)])
+      .then(([education, topology]) => {
+        const educationByFips = new Map(education.map(d => [d.fips, d]));
+        const counties = topojson.feature(
+          topology, topology.objects.counties
+        ).features;
+
+        const min = d3.min(education, d => d.bachelorsOrHigher);
+        const max = d3.max(education, d => d.bachelorsOrHigher);
+        const color = d3.scaleQuantize().domain([min, max]).range(colors);
+
+        d3.select('#county-count').text(education.length.toLocaleString('en-US'));
+        d3.select('#average-rate').text(
+          d3.mean(education, d => d.bachelorsOrHigher).toFixed(1) + '%'
+        );
+        d3.select('#highest-rate').text(max.toFixed(1) + '%');
+
+        // County geometry is already in projected U.S. map coordinates.
+        const path = d3.geoPath();
+
+        function moveTooltip(event) {
+          const [px, py] = d3.pointer(event, stage.node());
+          const stageWidth = stage.node().getBoundingClientRect().width;
+          const left = Math.max(126, Math.min(px, stageWidth - 126));
+          const below = py < 175;
+
+          tooltip
+            .style('left', left + 'px')
+            .style('top', (below ? py + 18 : py - 16) + 'px')
+            .style('transform', below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)');
+        }
+
+        function showTooltip(event, feature) {
+          const record = educationByFips.get(+feature.id);
+          if (!record) return;
+
+          tooltip
+            .attr('data-education', record.bachelorsOrHigher)
+            .html(
+              '<div class="tip-kicker">County profile</div>' +
+              '<div class="tip-name"></div>' +
+              '<div class="tip-value"></div>' +
+              '<div class="tip-detail">Adults with a bachelor\'s degree or higher</div>'
+            )
+            .style('display', 'block');
+
+          tooltip.select('.tip-name').text(record.area_name + ', ' + record.state);
+          tooltip.select('.tip-value').text(record.bachelorsOrHigher.toFixed(1) + '%');
+          moveTooltip(event);
+        }
+
+        function hideTooltip() {
+          tooltip.style('display', 'none');
+        }
+
+        svg.append('g')
+          .attr('class', 'county-layer')
+          .selectAll('path')
+          .data(counties)
+          .enter()
+          .append('path')
+          .attr('class', 'county')
+          .attr('d', path)
+          .attr('data-fips', d => d.id)
+          .attr('data-education', d => {
+            const record = educationByFips.get(+d.id);
+            return record ? record.bachelorsOrHigher : 0;
+          })
+          .attr('fill', d => {
+            const record = educationByFips.get(+d.id);
+            return record ? color(record.bachelorsOrHigher) : '#30435f';
+          })
+          .on('mouseover', showTooltip)
+          .on('mousemove', moveTooltip)
+          .on('mouseout', hideTooltip);
+
+        // State boundaries are purely visual, so they are not county elements.
+        svg.append('path')
+          .datum(topojson.mesh(
+            topology, topology.objects.states, (a, b) => a !== b
+          ))
+          .attr('class', 'state-borders')
+          .attr('d', path);
+
+        // Use distinct rectangles, not a gradient, to satisfy legend tests.
+        const legend = d3.select('#legend').attr('viewBox', '0 0 560 75');
+        const startX = 12;
+        const startY = 9;
+        const binWidth = 67;
+
+        legend.selectAll('rect')
+          .data(colors)
+          .enter()
+          .append('rect')
+          .attr('x', (d, i) => startX + i * binWidth)
+          .attr('y', startY)
+          .attr('width', binWidth)
+          .attr('height', 25)
+          .attr('fill', d => d);
+
+        // Quantize thresholds are the boundaries between adjacent colors.
+        const thresholds = d3.range(colors.length + 1).map(i =>
+          min + (max - min) * i / colors.length
+        );
+
+        legend.selectAll('text')
+          .data(thresholds)
+          .enter()
+          .append('text')
+          .attr('class', 'legend-tick')
+          .attr('x', (d, i) => startX + i * binWidth)
+          .attr('y', 53)
+          .attr('text-anchor', 'middle')
+          .text((d, i) => (i % 2 === 0 || i === colors.length) ? d.toFixed(0) + '%' : '');
+      })
+      .catch(error => {
+        console.error('Failed to load choropleth data:', error);
+        stage.append('p')
+          .attr('class', 'error')
+          .text('Could not load the map. Check your internet connection and refresh.');
+      });
+  </script>
+</body>
+</html>
